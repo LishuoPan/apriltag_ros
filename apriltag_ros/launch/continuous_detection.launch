@@ -6,6 +6,7 @@
   <arg name="camera_name" default="/camera/color" />
   <arg name="image_topic" default="image_raw" />
   <arg name="queue_size" default="1" />
+  <arg name="camera_frame_name" default="/camera_link" />
 
   <!-- apriltag_ros continuous detection node -->
   <node pkg="apriltag_ros" type="apriltag_ros_continuous_node" name="apriltag_ros_continuous_node" clear_params="true" output="screen" launch-prefix="$(arg launch_prefix)">
@@ -20,4 +21,14 @@
     <rosparam command="load" file="$(find apriltag_ros)/config/settings.yaml"/>
     <rosparam command="load" file="$(find apriltag_ros)/config/tags.yaml"/>
   </node>
+
+  <!-- apriltag_ros vision node -->
+  <node pkg="apriltag_ros" type="apriltag_ros_vision_node" name="apriltag_ros_vision_node" clear_params="true" output="screen" launch-prefix="$(arg launch_prefix)">
+    <!-- Remap topics from those used in code to those on the ROS network -->
+    <remap from="camera_link" to="$(arg camera_frame_name)" />
+    
+    <!-- load parameters (incl. tag family, tags, etc.) -->
+    <rosparam file="$(find apriltag_ros)/config/tags.yaml"/>
+  </node>
+
 </launch>
