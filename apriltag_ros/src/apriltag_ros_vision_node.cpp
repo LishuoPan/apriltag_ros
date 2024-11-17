@@ -58,7 +58,7 @@ int main (int argc, char **argv) {
 
     std::vector<ros::Publisher> pose_pubs(standalone_tags.size());
     for (int i = 0; i < standalone_tags.size(); ++i) {
-        pose_pubs[i] = nh.advertise<geometry_msgs::Pose>("tag_"+std::to_string(standalone_tags.at(i).id)+"/pose", 10);
+        pose_pubs[i] = nh.advertise<geometry_msgs::PoseStamped>("tag_"+std::to_string(standalone_tags.at(i).id)+"/pose", 10);
     }
 
     tf::TransformListener listener;
@@ -76,22 +76,26 @@ int main (int argc, char **argv) {
                 ROS_ERROR("%s",ex.what());
             }
 
-            // Create a Pose message
-            geometry_msgs::Pose pose_msg;
+            // Create a PoseStamped message
+            geometry_msgs::PoseStamped pose_stamped_msg;
+            // Set the header
+            pose_stamped_msg.header.stamp = ros::Time::now();
+            pose_stamped_msg.header.frame_id = "/camera_link";
+
             // Set position (from translation of transform)
-            pose_msg.position.x = transformStamped.getOrigin().x();
-            pose_msg.position.y = transformStamped.getOrigin().y();
-            pose_msg.position.z = transformStamped.getOrigin().z();
+            pose_stamped_msg.pose.position.x = transformStamped.getOrigin().x();
+            pose_stamped_msg.pose.position.y = transformStamped.getOrigin().y();
+            pose_stamped_msg.pose.position.z = transformStamped.getOrigin().z();
             // Set orientation (from rotation of transform)
             // Extract rotation (orientation)
             tf::Quaternion quat = transformStamped.getRotation();
-            pose_msg.orientation.x = quat.x();
-            pose_msg.orientation.y = quat.y();
-            pose_msg.orientation.z = quat.z();
-            pose_msg.orientation.w = quat.w();
+            pose_stamped_msg.pose.orientation.x = quat.x();
+            pose_stamped_msg.pose.orientation.y = quat.y();
+            pose_stamped_msg.pose.orientation.z = quat.z();
+            pose_stamped_msg.pose.orientation.w = quat.w();
 
             // Publish the pose message
-            pose_pubs[i].publish(pose_msg);
+            pose_pubs[i].publish(pose_stamped_msg);
         }
 
         ros::spinOnce();
