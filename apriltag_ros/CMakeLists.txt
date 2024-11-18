@@ -131,6 +131,11 @@ add_executable(${PROJECT_NAME}_vision_node src/${PROJECT_NAME}_vision_node.cpp)
 add_dependencies(${PROJECT_NAME}_vision_node ${PROJECT_NAME}_generate_messages_cpp)
 target_link_libraries(${PROJECT_NAME}_vision_node ${PROJECT_NAME}_common ${catkin_LIBRARIES})
 
+add_executable(${PROJECT_NAME}_detection_node src/${PROJECT_NAME}_detection_node.cpp)
+add_dependencies(${PROJECT_NAME}_detection_node ${PROJECT_NAME}_generate_messages_cpp)
+target_include_directories(${PROJECT_NAME}_detection_node PUBLIC third_party/json/single_include)
+target_link_libraries(${PROJECT_NAME}_detection_node ${PROJECT_NAME}_common ${catkin_LIBRARIES})
+
 #############
 ## Install ##
 #############

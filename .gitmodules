@@ -1,0 +1,3 @@
+[submodule "apriltag_ros/third_party/json"]
+	path = apriltag_ros/third_party/json
+	url = https://github.com/nlohmann/json.git
