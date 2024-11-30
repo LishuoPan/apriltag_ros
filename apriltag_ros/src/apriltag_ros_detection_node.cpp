@@ -51,7 +51,7 @@ public:
         target_pubs_.resize(NUM_TARGETS);
         for (size_t i = 0; i < NUM_TARGETS; ++i) {
             size_t target_id = target_ids_[i];
-            target_pubs_[i] = nh_.advertise<geometry_msgs::PoseStamped>("/target_"+std::to_string(target_id), 10);
+            target_pubs_[i] = nh_.advertise<geometry_msgs::PoseStamped>("uav"+std::to_string(ROBOT_ID)+"/target"+std::to_string(target_id), 10);
         }
         detection_timer_ = nh_.createTimer(ros::Duration(1/rate), std::bind(&DetectionNode::detection_timer_callback, this));
         std::cout << "initialized all subs&pubs\n";
@@ -123,7 +123,7 @@ void DetectionNode::detection_timer_callback() {
         geometry_msgs::PoseStamped pose_stamped_msg;
         // Set the header
         pose_stamped_msg.header.stamp = lastest_timestamp;
-        pose_stamped_msg.header.frame_id = "/target_"+std::to_string(target_id);
+        pose_stamped_msg.header.frame_id = "uav"+std::to_string(ROBOT_ID)+"/target"+std::to_string(target_id);
 
         // Set position (from translation of transform)
         pose_stamped_msg.pose.position.x = lastest_transformStamped.getOrigin().x();

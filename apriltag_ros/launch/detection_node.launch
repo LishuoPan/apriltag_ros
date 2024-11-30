@@ -24,6 +24,7 @@
 
 
   <arg name="CONFIG_FILENAME" default="$(find fovmpc_controller)/../../config/config.json"/>
+  <arg name="ROBOT_ID" default="0"/>
   <arg name="NUM_TARGETS" default="2"/>
   <!-- apriltag_ros vision node -->
   <node pkg="apriltag_ros" type="apriltag_ros_detection_node" name="apriltag_ros_detection_node" clear_params="true" output="screen" launch-prefix="$(arg launch_prefix)">
@@ -32,6 +33,7 @@
 
     <!-- load parameters (incl. tag family, tags, etc.) -->
     <param name="CONFIG_FILENAME" type="string" value="$(arg CONFIG_FILENAME)"/>
+    <param name="ROBOT_ID" value="$(arg ROBOT_ID)"/>
     <param name="NUM_TARGETS" value="$(arg NUM_TARGETS)"/>
   </node>
 
