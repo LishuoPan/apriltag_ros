@@ -4,9 +4,9 @@
 
 
 #include <ros/ros.h>
+#include <std_msgs/Int32MultiArray.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <tf/transform_listener.h>
-#include <nlohmann/json.hpp>
 #include <signal.h>
 #include <fstream>
 
@@ -15,9 +15,6 @@ sig_atomic_t volatile node_shutdown_request = 0;    //signal manually generated 
 class DetectionNode
 {
 public:
-
-    using json = nlohmann::json;
-
     DetectionNode() : nh_priv_("~")
     {
         // ---------------- ROS params -----------------
@@ -34,24 +31,18 @@ public:
         }
         assert(target_ids_.size() == NUM_TARGETS);
 
-        // ---------------- load json -----------------
-        std::string experiment_config_filename = CONFIG_FILENAME;
-        std::fstream experiment_config_fc(experiment_config_filename.c_str(), std::ios_base::in);
-        json experiment_config_json = json::parse(experiment_config_fc);
-        std::cout << "successfully load the json..." << "\n";
-
-        // assign tags to each neighbor
-        for (auto target_id:target_ids_) {
-            std::vector<size_t> neighbor_tags = {experiment_config_json["vision"]["tags"][target_id][0], experiment_config_json["vision"]["tags"][target_id][1]};
-            target_tags_.push_back(neighbor_tags);
-        }
-        assert(target_tags_.size() == target_ids_.size());
-
         // ---------- Subs and Pubs -------------------
+        target_tags_subs_.resize(NUM_TARGETS);
+        target_tags_.resize(NUM_TARGETS);
+        for (size_t i = 0; i < NUM_TARGETS; ++i) {
+            size_t target_id = target_ids_.at(i);
+            target_tags_subs_.at(i) = nh_.subscribe<std_msgs::Int32MultiArray>("/uav"+std::to_string(target_id)+"/tags", 1, std::bind(&DetectionNode::target_tags_update_callback, this, std::placeholders::_1, i));
+        }
+
         target_pubs_.resize(NUM_TARGETS);
         for (size_t i = 0; i < NUM_TARGETS; ++i) {
             size_t target_id = target_ids_[i];
-            target_pubs_[i] = nh_.advertise<geometry_msgs::PoseStamped>("uav"+std::to_string(ROBOT_ID)+"/target"+std::to_string(target_id), 10);
+            target_pubs_[i] = nh_.advertise<geometry_msgs::PoseStamped>("/uav"+std::to_string(ROBOT_ID)+"/detection"+std::to_string(target_id), 10);
         }
         detection_timer_ = nh_.createTimer(ros::Duration(1/rate), std::bind(&DetectionNode::detection_timer_callback, this));
         std::cout << "initialized all subs&pubs\n";
@@ -64,6 +55,7 @@ public:
 
     void stop();
     void detection_timer_callback();
+    void target_tags_update_callback(const std_msgs::Int32MultiArray::ConstPtr& msg, size_t target_index);
 
 private:
     int ROBOT_ID = 0;
@@ -75,11 +67,13 @@ private:
     ros::NodeHandle nh_;
     ros::NodeHandle nh_priv_;
     tf::TransformListener TF_listener_;
+    std::vector<ros::Subscriber> target_tags_subs_;
     std::vector<ros::Publisher> target_pubs_;
     ros::Timer detection_timer_;
 
-    std::vector<std::vector<size_t>> target_tags_;
+    std::vector<std::vector<int>> target_tags_;
     std::vector<size_t> target_ids_;
+    bool target_tags_assigned_ = false;
 };
 
 void DetectionNode::stop()
@@ -89,58 +83,81 @@ void DetectionNode::stop()
 }
 
 void DetectionNode::detection_timer_callback() {
-    for (size_t i = 0; i < NUM_TARGETS; ++i) {
-        size_t target_id = target_ids_.at(i);
-        std::vector<size_t> tags = target_tags_.at(i);
+    if (target_tags_assigned_) {
+        for (size_t i = 0; i < NUM_TARGETS; ++i) {
+            size_t target_id = target_ids_.at(i);
+            std::vector<int> tags = target_tags_.at(i);
 
 
-        std::vector<tf::StampedTransform> transformStampedes;
-        transformStampedes.resize(tags.size());
-        std::cout << "start read transformStampedes\n";
-        for (size_t j = 0; j < tags.size(); ++j) {
-            try {
-                TF_listener_.lookupTransform("/camera_link", "/tag_" + std::to_string(tags.at(j)),
-                                             ros::Time(0), transformStampedes.at(j));
+            std::vector<tf::StampedTransform> transformStampedes;
+            transformStampedes.resize(tags.size());
+            for (size_t j = 0; j < tags.size(); ++j) {
+                try {
+                    TF_listener_.lookupTransform("/camera_link", "/tag_" + std::to_string(tags.at(j)),
+                                                 ros::Time(0), transformStampedes.at(j));
+                }
+                catch (tf::TransformException ex) {
+                    ROS_ERROR("%s", ex.what());
+                }
             }
-            catch (tf::TransformException ex){
-                ROS_ERROR("%s",ex.what());
+
+            // get the lastest transformStamp
+            size_t lastest_transform_index = 0;
+            ros::Time lastest_timestamp = transformStampedes.at(0).stamp_;
+            for (size_t j = 1; j < tags.size(); ++j) {
+                ros::Time timestamp = transformStampedes.at(j).stamp_;
+                if (timestamp > lastest_timestamp) {
+                    lastest_transform_index = j;
+                    lastest_timestamp = timestamp;
+                }
             }
+            tf::StampedTransform lastest_transformStamped = transformStampedes.at(lastest_transform_index);
+
+            // Create a PoseStamped message
+            geometry_msgs::PoseStamped pose_stamped_msg;
+            // Set the header
+            pose_stamped_msg.header.stamp = lastest_timestamp;
+            pose_stamped_msg.header.frame_id =
+                    "/uav" + std::to_string(target_ids_.at(i)) + "/detection" + std::to_string(target_id);
+
+            // Set position (from translation of transform)
+            pose_stamped_msg.pose.position.x = lastest_transformStamped.getOrigin().x();
+            pose_stamped_msg.pose.position.y = lastest_transformStamped.getOrigin().y();
+            pose_stamped_msg.pose.position.z = lastest_transformStamped.getOrigin().z();
+            // Set orientation (from rotation of transform)
+            // Extract rotation (orientation)
+            tf::Quaternion quat = lastest_transformStamped.getRotation();
+            pose_stamped_msg.pose.orientation.x = quat.x();
+            pose_stamped_msg.pose.orientation.y = quat.y();
+            pose_stamped_msg.pose.orientation.z = quat.z();
+            pose_stamped_msg.pose.orientation.w = quat.w();
+
+            // publish the poseStamp
+            target_pubs_[i].publish(pose_stamped_msg);
+
         }
-
-        // get the lastest transformStamp
-        size_t lastest_transform_index = 0;
-        ros::Time lastest_timestamp = transformStampedes.at(0).stamp_;
-        for (size_t j = 1; j < tags.size(); ++j) {
-            ros::Time timestamp = transformStampedes.at(j).stamp_;
-            if (timestamp > lastest_timestamp) {
-                lastest_transform_index = j;
-                lastest_timestamp = timestamp;
-            }
-        }
-        tf::StampedTransform lastest_transformStamped = transformStampedes.at(lastest_transform_index);
-
-        // Create a PoseStamped message
-        geometry_msgs::PoseStamped pose_stamped_msg;
-        // Set the header
-        pose_stamped_msg.header.stamp = lastest_timestamp;
-        pose_stamped_msg.header.frame_id = "uav"+std::to_string(ROBOT_ID)+"/target"+std::to_string(target_id);
-
-        // Set position (from translation of transform)
-        pose_stamped_msg.pose.position.x = lastest_transformStamped.getOrigin().x();
-        pose_stamped_msg.pose.position.y = lastest_transformStamped.getOrigin().y();
-        pose_stamped_msg.pose.position.z = lastest_transformStamped.getOrigin().z();
-        // Set orientation (from rotation of transform)
-        // Extract rotation (orientation)
-        tf::Quaternion quat = lastest_transformStamped.getRotation();
-        pose_stamped_msg.pose.orientation.x = quat.x();
-        pose_stamped_msg.pose.orientation.y = quat.y();
-        pose_stamped_msg.pose.orientation.z = quat.z();
-        pose_stamped_msg.pose.orientation.w = quat.w();
-
-        // publish the poseStamp
-        target_pubs_[i].publish(pose_stamped_msg);
-
     }
+}
+
+void DetectionNode::target_tags_update_callback(const std_msgs::Int32MultiArray::ConstPtr& msg, size_t target_index) {
+    if (!target_tags_assigned_) {
+        std::vector<int> neighbor_tags = {msg->data[0], msg->data[1]};
+
+        target_tags_.at(target_index) = neighbor_tags;
+
+        // check if all the target tags are assigned
+        bool all_assigned = true;
+        for (size_t i = 0; i < target_tags_.size(); ++i) {
+            if (target_tags_.at(i).empty()) {
+                all_assigned = false;
+            }
+        }
+        target_tags_assigned_ = all_assigned;
+        if (target_tags_assigned_) {
+            assert(target_tags_.size() == target_ids_.size());
+        }
+    }
+
 }
 
 /*******************************************************************************
