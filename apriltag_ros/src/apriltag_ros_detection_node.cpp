@@ -93,7 +93,7 @@ void DetectionNode::detection_timer_callback() {
             transformStampedes.resize(tags.size());
             for (size_t j = 0; j < tags.size(); ++j) {
                 try {
-                    TF_listener_.lookupTransform("/camera_link", "/tag_" + std::to_string(tags.at(j)),
+                    TF_listener_.lookupTransform("/uav"+std::to_string(ROBOT_ID)+"/camera_link", "/tag_" + std::to_string(tags.at(j)),
                                                  ros::Time(0), transformStampedes.at(j));
                 }
                 catch (tf::TransformException ex) {
