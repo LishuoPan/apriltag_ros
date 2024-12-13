@@ -91,14 +91,20 @@ void DetectionNode::detection_timer_callback() {
 
             std::vector<tf::StampedTransform> transformStampedes;
             transformStampedes.resize(tags.size());
+            int recognized_tags = 0;
             for (size_t j = 0; j < tags.size(); ++j) {
                 try {
                     TF_listener_.lookupTransform("/uav"+std::to_string(ROBOT_ID)+"/camera_link", "/tag_" + std::to_string(tags.at(j)),
                                                  ros::Time(0), transformStampedes.at(j));
+                    recognized_tags += 1;
                 }
                 catch (tf::TransformException ex) {
                     ROS_ERROR("%s", ex.what());
                 }
+            }
+
+            if (recognized_tags == 0) {
+                continue;
             }
 
             // get the lastest transformStamp
@@ -118,7 +124,7 @@ void DetectionNode::detection_timer_callback() {
             // Set the header
             pose_stamped_msg.header.stamp = lastest_timestamp;
             pose_stamped_msg.header.frame_id =
-                    "/uav" + std::to_string(target_ids_.at(i)) + "/detection" + std::to_string(target_id);
+                    "/uav" + std::to_string(ROBOT_ID) + "/detection" + std::to_string(target_id);
 
             // Set position (from translation of transform)
             pose_stamped_msg.pose.position.x = lastest_transformStamped.getOrigin().x();
