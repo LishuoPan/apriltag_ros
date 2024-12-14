@@ -36,13 +36,13 @@ public:
         target_tags_.resize(NUM_TARGETS);
         for (size_t i = 0; i < NUM_TARGETS; ++i) {
             size_t target_id = target_ids_.at(i);
-            target_tags_subs_.at(i) = nh_.subscribe<std_msgs::Int32MultiArray>("/uav"+std::to_string(target_id)+"/tags", 1, std::bind(&DetectionNode::target_tags_update_callback, this, std::placeholders::_1, i));
+            target_tags_subs_.at(i) = nh_.subscribe<std_msgs::Int32MultiArray>("uav"+std::to_string(target_id)+"/tags", 1, std::bind(&DetectionNode::target_tags_update_callback, this, std::placeholders::_1, i));
         }
 
         target_pubs_.resize(NUM_TARGETS);
         for (size_t i = 0; i < NUM_TARGETS; ++i) {
             size_t target_id = target_ids_[i];
-            target_pubs_[i] = nh_.advertise<geometry_msgs::PoseStamped>("/uav"+std::to_string(ROBOT_ID)+"/detection"+std::to_string(target_id), 10);
+            target_pubs_[i] = nh_.advertise<geometry_msgs::PoseStamped>("uav"+std::to_string(ROBOT_ID)+"/detection"+std::to_string(target_id), 10);
         }
         detection_timer_ = nh_.createTimer(ros::Duration(1/rate), std::bind(&DetectionNode::detection_timer_callback, this));
         std::cout << "initialized all subs&pubs\n";
@@ -124,7 +124,7 @@ void DetectionNode::detection_timer_callback() {
             // Set the header
             pose_stamped_msg.header.stamp = lastest_timestamp;
             pose_stamped_msg.header.frame_id =
-                    "/uav" + std::to_string(ROBOT_ID) + "/detection" + std::to_string(target_id);
+                    "uav" + std::to_string(ROBOT_ID) + "/camera_link";
 
             // Set position (from translation of transform)
             pose_stamped_msg.pose.position.x = lastest_transformStamped.getOrigin().x();
