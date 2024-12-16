@@ -96,13 +96,20 @@ void DetectionNode::detection_timer_callback() {
                 try {
                     TF_listener_.lookupTransform("/uav"+std::to_string(ROBOT_ID)+"/camera_link", "/uav"+std::to_string(ROBOT_ID)+"/tag" + std::to_string(tags.at(j)),
                                                  ros::Time(0), transformStampedes.at(j));
-                    recognized_tags += 1;
+
+                    std::cout << "msg time: " << transformStampedes.at(j).stamp_.sec << "." << transformStampedes.at(j).stamp_.nsec << "\n";
+                    std::cout << "Now time: " << ros::Time::now().sec << "." << ros::Time::now().nsec << "\n";
+                    std::cout << "time difference: " << (ros::Time::now() - transformStampedes.at(j).stamp_).toSec() << "\n";
+                    if ((ros::Time::now() - transformStampedes.at(j).stamp_).toSec() < 0.3) {
+                        recognized_tags += 1;
+                    }
                 }
                 catch (tf::TransformException ex) {
                     ROS_ERROR("%s", ex.what());
                 }
             }
 
+            std::cout << "target:"  << target_id << " number of recognized tags: " << recognized_tags << "\n";
             if (recognized_tags == 0) {
                 continue;
             }
